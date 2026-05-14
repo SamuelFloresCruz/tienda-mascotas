@@ -1,11 +1,17 @@
 import { useEffect, useState } from 'react';
-import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { ChevronLeft, ChevronRight, X } from 'lucide-react';
+import * as Dialog from '@radix-ui/react-dialog';
+import { useNavigate } from 'react-router-dom';
 import { supabase } from '../../lib/supabaseClient';
 
 type Animal = {
   id: number;
   nombre: string;
+  edad: string;
+  precio: number;
+  estado: string;
   imagen: string | null;
+  galeria: string[] | null;
   especie: {
     id: number;
     nombre: string;
@@ -22,9 +28,13 @@ type EspecieCard = {
   count: number;
 };
 
+const formatCurrency = (value: number) => `$${value.toFixed(2)}`;
+
 export function Home() {
+  const navigate = useNavigate();
   const [currentSlide, setCurrentSlide] = useState(0);
   const [animales, setAnimales] = useState<Animal[]>([]);
+  const [selectedAnimal, setSelectedAnimal] = useState<Animal | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -35,7 +45,7 @@ export function Home() {
 
       const { data, error: fetchError } = await supabase
         .from('animales')
-        .select('id, nombre, imagen, especie:especies(id, nombre), raza:razas(id, nombre)')
+        .select('id, nombre, edad, precio, estado, imagen, galeria, especie:especies(id, nombre), raza:razas(id, nombre)')
         .order('created_at', { ascending: false });
 
       if (fetchError) {
@@ -97,6 +107,10 @@ export function Home() {
       setCurrentSlide(0);
     }
   }, [currentSlide, destacados.length]);
+
+  const handleOpenEspecie = (nombre: string) => {
+    navigate(`/catalogo?especie=${encodeURIComponent(nombre)}`);
+  };
 
   return (
     <div className="space-y-12">
@@ -167,6 +181,7 @@ export function Home() {
             {especies.map((especie) => (
               <div
                 key={especie.nombre}
+                onClick={() => handleOpenEspecie(especie.nombre)}
                 className="group relative h-48 bg-card border border-border rounded-lg overflow-hidden cursor-pointer hover:shadow-xl transition-all"
               >
                 {especie.imagen ? (
@@ -200,6 +215,7 @@ export function Home() {
             {recientes.map((animal) => (
               <div
                 key={animal.id}
+                onClick={() => setSelectedAnimal(animal)}
                 className="bg-card border border-border rounded-lg overflow-hidden hover:shadow-lg transition-shadow cursor-pointer"
               >
                 {animal.imagen ? (
@@ -224,6 +240,79 @@ export function Home() {
           </div>
         )}
       </section>
+
+      <Dialog.Root open={!!selectedAnimal} onOpenChange={(open) => !open && setSelectedAnimal(null)}>
+        <Dialog.Portal>
+          <Dialog.Overlay className="fixed inset-0 bg-black/50 backdrop-blur-sm" />
+          <Dialog.Content className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-card border border-border rounded-lg shadow-2xl w-[800px] max-h-[90vh] overflow-y-auto">
+            {selectedAnimal && (
+              <div>
+                <div className="sticky top-0 bg-card border-b border-border px-6 py-4 flex items-center justify-between">
+                  <h2>{selectedAnimal.nombre}</h2>
+                  <Dialog.Close className="p-2 hover:bg-muted rounded-lg transition-colors">
+                    <X className="w-5 h-5" />
+                  </Dialog.Close>
+                </div>
+
+                <div className="p-6 space-y-6">
+                  <div className="grid grid-cols-2 gap-4">
+                    {selectedAnimal.galeria && selectedAnimal.galeria.length > 0 ? (
+                      selectedAnimal.galeria.map((img, index) => (
+                        <img
+                          key={index}
+                          src={img}
+                          alt={`${selectedAnimal.nombre} - foto ${index + 1}`}
+                          className="w-full h-64 object-cover rounded-lg"
+                        />
+                      ))
+                    ) : (
+                      <div className="col-span-2 bg-muted rounded-lg h-64 flex items-center justify-center text-muted-foreground">
+                        Sin fotos registradas
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <p className="text-sm text-muted-foreground mb-1">Especie</p>
+                      <p>{selectedAnimal.especie?.nombre ?? 'Sin especie'}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-muted-foreground mb-1">Raza</p>
+                      <p>{selectedAnimal.raza?.nombre ?? 'Sin raza'}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-muted-foreground mb-1">Edad</p>
+                      <p>{selectedAnimal.edad}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-muted-foreground mb-1">Precio</p>
+                      <p className="text-primary">{formatCurrency(selectedAnimal.precio)}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-muted-foreground mb-1">Estado</p>
+                      <p className={
+                        selectedAnimal.estado === 'Disponible' ? 'text-black' :
+                        selectedAnimal.estado === 'Reservado' ? 'text-secondary' :
+                        'text-muted-foreground'
+                      }>{selectedAnimal.estado}</p>
+                    </div>
+                  </div>
+
+                  <div className="flex gap-3 pt-4">
+                    <button className="flex-1 bg-primary text-primary-foreground px-6 py-3 rounded-lg hover:bg-primary/90 transition-colors">
+                      Consultar
+                    </button>
+                    <button className="flex-1 bg-secondary text-secondary-foreground px-6 py-3 rounded-lg hover:bg-secondary/90 transition-colors">
+                      Comprar
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+          </Dialog.Content>
+        </Dialog.Portal>
+      </Dialog.Root>
     </div>
   );
 }

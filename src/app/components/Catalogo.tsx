@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Filter, X } from 'lucide-react';
 import * as Dialog from '@radix-ui/react-dialog';
+import { useSearchParams } from 'react-router-dom';
 import { supabase } from '../../lib/supabaseClient';
 
 type Animal = {
@@ -24,6 +25,7 @@ type Animal = {
 const formatCurrency = (value: number) => `$${value.toFixed(2)}`;
 
 export function Catalogo() {
+  const [searchParams] = useSearchParams();
   const [selectedEspecie, setSelectedEspecie] = useState('Todos');
   const [selectedRaza, setSelectedRaza] = useState('Todos');
   const [selectedAnimal, setSelectedAnimal] = useState<Animal | null>(null);
@@ -53,6 +55,14 @@ export function Catalogo() {
 
     loadData();
   }, []);
+
+  useEffect(() => {
+    const especieParam = searchParams.get('especie');
+    if (especieParam) {
+      setSelectedEspecie(especieParam);
+      setSelectedRaza('Todos');
+    }
+  }, [searchParams]);
 
   const especies = [
     'Todos',
@@ -84,7 +94,7 @@ export function Catalogo() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h1>Catalogo de Animales</h1>
+        <h1>Lista de Mascotas</h1>
       </div>
 
       {loading && <p className="text-muted-foreground">Cargando catalogo...</p>}

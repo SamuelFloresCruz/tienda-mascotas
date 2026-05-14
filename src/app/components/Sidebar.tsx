@@ -6,7 +6,7 @@ export function Sidebar() {
 
   const menuItems = [
     { path: '/', icon: Home, label: 'Home' },
-    { path: '/catalogo', icon: Grid3x3, label: 'Explorar Catálogo' },
+    { path: '/catalogo', icon: Grid3x3, label: 'Mascotas' },
     { path: '/registro', icon: Package, label: 'Registro de Entradas' },
     { path: '/configuracion', icon: Settings, label: 'Configuración' },
   ];
@@ -14,7 +14,7 @@ export function Sidebar() {
   return (
     <div className="w-64 bg-sidebar h-screen fixed left-0 top-0 border-r border-sidebar-border">
       <div className="p-6">
-        <h1 className="text-sidebar-foreground mb-8">PetShop System</h1>
+        <h1 className="text-sidebar-foreground mb-8">Mascotas</h1>
       </div>
 
       <nav className="px-3">

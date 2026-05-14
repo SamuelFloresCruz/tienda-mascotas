@@ -9,21 +9,16 @@ type Especie = {
   id: number;
   nombre: string;
   descripcion: string;
-  activa: boolean;
 };
 
 type Raza = {
   id: number;
   nombre: string;
-  precio_base: number;
-  cuidados: string;
   especie: {
     id: number;
     nombre: string;
   } | null;
 };
-
-const formatCurrency = (value: number) => `$${value.toFixed(2)}`;
 
 export function Configuracion() {
   const [especies, setEspecies] = useState<Especie[]>([]);
@@ -33,9 +28,14 @@ export function Configuracion() {
 
   const [showEspecieDialog, setShowEspecieDialog] = useState(false);
   const [showRazaDialog, setShowRazaDialog] = useState(false);
+  const [showEditarEspecieDialog, setShowEditarEspecieDialog] = useState(false);
+  const [showEditarRazaDialog, setShowEditarRazaDialog] = useState(false);
 
   const [nuevaEspecie, setNuevaEspecie] = useState({ nombre: '', descripcion: '' });
   const [nuevaRaza, setNuevaRaza] = useState({ nombre: '', especieId: '', precioBase: '', cuidados: 'Medio' });
+
+  const [especieEdit, setEspecieEdit] = useState({ id: 0, nombre: '', descripcion: '' });
+  const [razaEdit, setRazaEdit] = useState({ id: 0, nombre: '', especieId: '' });
 
   useEffect(() => {
     const loadData = async () => {
@@ -45,11 +45,11 @@ export function Configuracion() {
       const [especiesRes, razasRes] = await Promise.all([
         supabase
           .from('especies')
-          .select('id, nombre, descripcion, activa')
+          .select('id, nombre, descripcion')
           .order('nombre'),
         supabase
           .from('razas')
-          .select('id, nombre, precio_base, cuidados, especie:especies(id, nombre)')
+          .select('id, nombre, especie:especies(id, nombre)')
           .order('nombre'),
       ]);
 
@@ -81,7 +81,7 @@ export function Configuracion() {
         descripcion: nuevaEspecie.descripcion,
         activa: true,
       })
-      .select('id, nombre, descripcion, activa')
+      .select('id, nombre, descripcion')
       .single();
 
     if (insertError) {
@@ -116,7 +116,7 @@ export function Configuracion() {
         precio_base: precioBaseValue,
         cuidados: nuevaRaza.cuidados,
       })
-      .select('id, nombre, precio_base, cuidados, especie:especies(id, nombre)')
+      .select('id, nombre, especie:especies(id, nombre)')
       .single();
 
     if (insertError) {
@@ -128,6 +128,58 @@ export function Configuracion() {
     setNuevaRaza({ nombre: '', especieId: '', precioBase: '', cuidados: 'Medio' });
     setShowRazaDialog(false);
     toast.success('Raza registrada con exito.');
+  };
+
+  const handleEditarEspecie = async () => {
+    if (!especieEdit.nombre || !especieEdit.descripcion) {
+      toast.error('Completa el nombre y la descripcion.');
+      return;
+    }
+
+    const { data, error: updateError } = await supabase
+      .from('especies')
+      .update({
+        nombre: especieEdit.nombre,
+        descripcion: especieEdit.descripcion,
+      })
+      .eq('id', especieEdit.id)
+      .select('id, nombre, descripcion')
+      .single();
+
+    if (updateError) {
+      toast.error('No se pudo actualizar la especie.');
+      return;
+    }
+
+    setEspecies((prev) => prev.map((item) => (item.id === data.id ? data : item)));
+    setShowEditarEspecieDialog(false);
+    toast.success('Especie actualizada con exito.');
+  };
+
+  const handleEditarRaza = async () => {
+    if (!razaEdit.nombre || !razaEdit.especieId) {
+      toast.error('Completa el nombre y la especie.');
+      return;
+    }
+
+    const { data, error: updateError } = await supabase
+      .from('razas')
+      .update({
+        nombre: razaEdit.nombre,
+        especie_id: Number(razaEdit.especieId),
+      })
+      .eq('id', razaEdit.id)
+      .select('id, nombre, especie:especies(id, nombre)')
+      .single();
+
+    if (updateError) {
+      toast.error('No se pudo actualizar la raza.');
+      return;
+    }
+
+    setRazas((prev) => prev.map((item) => (item.id === data.id ? data : item)));
+    setShowEditarRazaDialog(false);
+    toast.success('Raza actualizada con exito.');
   };
 
   const eliminarEspecie = async (id: number) => {
@@ -213,12 +265,18 @@ export function Configuracion() {
                     <p className="text-sm text-muted-foreground">{especie.descripcion}</p>
                   </div>
                   <div className="flex items-center gap-3">
-                    <span className={`px-3 py-1 rounded text-sm ${
-                      especie.activa ? 'bg-black text-white' : 'bg-muted text-muted-foreground'
-                    }`}>
-                      {especie.activa ? 'Activa' : 'Inactiva'}
-                    </span>
-                    <button className="p-2 hover:bg-muted rounded-lg transition-colors" aria-label="Editar especie">
+                    <button
+                      onClick={() => {
+                        setEspecieEdit({
+                          id: especie.id,
+                          nombre: especie.nombre,
+                          descripcion: especie.descripcion,
+                        });
+                        setShowEditarEspecieDialog(true);
+                      }}
+                      className="p-2 hover:bg-muted rounded-lg transition-colors"
+                      aria-label="Editar especie"
+                    >
                       <Pencil className="w-4 h-4" />
                     </button>
                     <button
@@ -256,7 +314,7 @@ export function Configuracion() {
                   key={raza.id}
                   className="bg-muted/30 border border-border rounded-lg p-4 flex items-center justify-between hover:bg-muted/50 transition-colors"
                 >
-                  <div className="flex-1 grid grid-cols-4 gap-4">
+                  <div className="flex-1 grid grid-cols-2 gap-4">
                     <div>
                       <p className="text-sm text-muted-foreground mb-1">Raza</p>
                       <p>{raza.nombre}</p>
@@ -265,23 +323,20 @@ export function Configuracion() {
                       <p className="text-sm text-muted-foreground mb-1">Especie</p>
                       <p>{raza.especie?.nombre ?? 'Sin especie'}</p>
                     </div>
-                    <div>
-                      <p className="text-sm text-muted-foreground mb-1">Precio Base</p>
-                      <p className="text-primary">{formatCurrency(raza.precio_base)}</p>
-                    </div>
-                    <div>
-                      <p className="text-sm text-muted-foreground mb-1">Nivel de Cuidados</p>
-                      <span className={`inline-block px-2 py-1 rounded text-xs ${
-                        raza.cuidados === 'Alto' ? 'bg-black text-white' :
-                        raza.cuidados === 'Medio' ? 'bg-secondary text-white' :
-                        'bg-muted text-muted-foreground'
-                      }`}>
-                        {raza.cuidados}
-                      </span>
-                    </div>
                   </div>
                   <div className="flex gap-2">
-                    <button className="p-2 hover:bg-muted rounded-lg transition-colors" aria-label="Editar raza">
+                    <button
+                      onClick={() => {
+                        setRazaEdit({
+                          id: raza.id,
+                          nombre: raza.nombre,
+                          especieId: raza.especie?.id ? String(raza.especie.id) : '',
+                        });
+                        setShowEditarRazaDialog(true);
+                      }}
+                      className="p-2 hover:bg-muted rounded-lg transition-colors"
+                      aria-label="Editar raza"
+                    >
                       <Pencil className="w-4 h-4" />
                     </button>
                     <button
@@ -299,7 +354,6 @@ export function Configuracion() {
         </Tabs.Content>
       </Tabs.Root>
 
-      {/* Dialog Nueva Especie */}
       <Dialog.Root open={showEspecieDialog} onOpenChange={setShowEspecieDialog}>
         <Dialog.Portal>
           <Dialog.Overlay className="fixed inset-0 bg-black/50 backdrop-blur-sm" />
@@ -345,7 +399,49 @@ export function Configuracion() {
         </Dialog.Portal>
       </Dialog.Root>
 
-      {/* Dialog Nueva Raza */}
+      <Dialog.Root open={showEditarEspecieDialog} onOpenChange={setShowEditarEspecieDialog}>
+        <Dialog.Portal>
+          <Dialog.Overlay className="fixed inset-0 bg-black/50 backdrop-blur-sm" />
+          <Dialog.Content className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-card border border-border rounded-lg shadow-2xl w-[500px] p-6">
+            <h3 className="mb-4">Editar Especie</h3>
+            <div className="space-y-4">
+              <div>
+                <label className="block mb-2">Nombre de la Especie</label>
+                <input
+                  type="text"
+                  value={especieEdit.nombre}
+                  onChange={(e) => setEspecieEdit({ ...especieEdit, nombre: e.target.value })}
+                  className="w-full px-4 py-3 bg-input-background border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-ring"
+                />
+              </div>
+              <div>
+                <label className="block mb-2">Descripcion</label>
+                <input
+                  type="text"
+                  value={especieEdit.descripcion}
+                  onChange={(e) => setEspecieEdit({ ...especieEdit, descripcion: e.target.value })}
+                  className="w-full px-4 py-3 bg-input-background border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-ring"
+                />
+              </div>
+              <div className="flex gap-3 pt-4">
+                <button
+                  onClick={() => setShowEditarEspecieDialog(false)}
+                  className="flex-1 px-4 py-2 border border-border rounded-lg hover:bg-muted transition-colors"
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={handleEditarEspecie}
+                  className="flex-1 bg-primary text-primary-foreground px-4 py-2 rounded-lg hover:bg-primary/90 transition-colors"
+                >
+                  Guardar
+                </button>
+              </div>
+            </div>
+          </Dialog.Content>
+        </Dialog.Portal>
+      </Dialog.Root>
+
       <Dialog.Root open={showRazaDialog} onOpenChange={setShowRazaDialog}>
         <Dialog.Portal>
           <Dialog.Overlay className="fixed inset-0 bg-black/50 backdrop-blur-sm" />
@@ -411,6 +507,53 @@ export function Configuracion() {
                   className="flex-1 bg-primary text-primary-foreground px-4 py-2 rounded-lg hover:bg-primary/90 transition-colors"
                 >
                   Agregar
+                </button>
+              </div>
+            </div>
+          </Dialog.Content>
+        </Dialog.Portal>
+      </Dialog.Root>
+
+      <Dialog.Root open={showEditarRazaDialog} onOpenChange={setShowEditarRazaDialog}>
+        <Dialog.Portal>
+          <Dialog.Overlay className="fixed inset-0 bg-black/50 backdrop-blur-sm" />
+          <Dialog.Content className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-card border border-border rounded-lg shadow-2xl w-[500px] p-6">
+            <h3 className="mb-4">Editar Raza</h3>
+            <div className="space-y-4">
+              <div>
+                <label className="block mb-2">Nombre de la Raza</label>
+                <input
+                  type="text"
+                  value={razaEdit.nombre}
+                  onChange={(e) => setRazaEdit({ ...razaEdit, nombre: e.target.value })}
+                  className="w-full px-4 py-3 bg-input-background border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-ring"
+                />
+              </div>
+              <div>
+                <label className="block mb-2">Especie</label>
+                <select
+                  value={razaEdit.especieId}
+                  onChange={(e) => setRazaEdit({ ...razaEdit, especieId: e.target.value })}
+                  className="w-full px-4 py-3 bg-input-background border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-ring"
+                >
+                  <option value="">Seleccionar especie</option>
+                  {especies.map((especie) => (
+                    <option key={especie.id} value={especie.id}>{especie.nombre}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="flex gap-3 pt-4">
+                <button
+                  onClick={() => setShowEditarRazaDialog(false)}
+                  className="flex-1 px-4 py-2 border border-border rounded-lg hover:bg-muted transition-colors"
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={handleEditarRaza}
+                  className="flex-1 bg-primary text-primary-foreground px-4 py-2 rounded-lg hover:bg-primary/90 transition-colors"
+                >
+                  Guardar
                 </button>
               </div>
             </div>
